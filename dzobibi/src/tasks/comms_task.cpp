@@ -117,12 +117,15 @@ void comms_task(void* pv) {
         }
     }
 
-    // Connect transport
+    // Connect transport — reset watchdog around blocking network calls
     while (!transport_connect()) {
         Serial.println("[COMMS] transport not available, retrying in 10 s...");
-        esp_task_wdt_reset();
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        for (int i = 0; i < 20; i++) {
+            esp_task_wdt_reset();
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
     }
+    esp_task_wdt_reset();
 
     // LWT payload
     char lwt[64];

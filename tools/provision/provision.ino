@@ -21,15 +21,24 @@ static bool is_valid_key(const String& k) {
     return false;
 }
 
+static bool host_connected = false;
+
 void setup() {
     Serial.begin(115200);
     delay(300);
-    Serial.println("PROVISION_READY");
-    Serial.println("# Send KEY=VALUE lines. Send COMMIT to save and finish.");
 }
 
 void loop() {
+    // Announce readiness every second until host sends something
+    if (!host_connected) {
+        static uint32_t last_announce = 0;
+        if (millis() - last_announce >= 1000) {
+            last_announce = millis();
+            Serial.println("PROVISION_READY");
+        }
+    }
     if (!Serial.available()) return;
+    host_connected = true;
 
     String line = Serial.readStringUntil('\n');
     line.trim();

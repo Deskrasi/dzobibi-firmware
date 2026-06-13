@@ -22,7 +22,7 @@ static ProvisionedConfig g_cfg;
 
 void setup() {
     Serial.begin(115200);
-    delay(200);
+    delay(2000);  // Allow USB CDC to re-enumerate after flash reset
     Serial.printf("\n=== Dzobibi firmware v%s (MAC: %s) ===\n",
                   FW_VERSION, WiFi.macAddress().c_str());
 

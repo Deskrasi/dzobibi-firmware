@@ -1,6 +1,7 @@
 #include "cellular.h"
 #include "../config/pins.h"
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 
 // TinyGSM for SIM7600
 #define TINY_GSM_MODEM_SIM7600
@@ -63,13 +64,20 @@ bool cellular_init() {
 
 bool cellular_connect(const char* apn, const char* user, const char* pass) {
     Serial.printf("[GSM] connecting GPRS on APN '%s'...\n", apn);
-    if (!s_modem.waitForNetwork(60000)) {
+    // Poll network registration in short bursts so the caller can feed the WDT
+    bool registered = false;
+    for (int i = 0; i < 12 && !registered; i++) {
+        registered = s_modem.waitForNetwork(5000);
+        esp_task_wdt_reset();
+    }
+    if (!registered) {
         Serial.println("[GSM] network registration timeout");
         return false;
     }
     s_data_up = s_modem.gprsConnect(apn, user, pass);
     if (s_data_up) Serial.println("[GSM] data up");
     else           Serial.println("[GSM] GPRS connect failed");
+    esp_task_wdt_reset();
     return s_data_up;
 }
 

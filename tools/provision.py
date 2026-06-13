@@ -36,7 +36,13 @@ def find_port():
     idx = int(input("Select port: "))
     return ports[idx]
 
-def prompt(label, secret=False, default=None):
+def prompt(label, secret=False, default=None, env_key=None):
+    # Check env var first (allows non-interactive use)
+    if env_key and env_key in os.environ:
+        val = os.environ[env_key]
+        masked = "***" if secret else (val if val else "(empty)")
+        print(f"  {label}: {masked}  (from env)")
+        return val if val else (default or "")
     suffix = f" [{default}]" if default else ""
     prompt_str = f"  {label}{suffix}: "
     if secret:
@@ -54,22 +60,22 @@ print("Credentials are sent directly to the board and never written to disk.\n")
 
 fields = {}
 print("MQTT broker (HiveMQ Cloud):")
-fields["mqtt_broker"] = prompt("  Broker hostname (e.g. abc123.s1.eu.hivemq.cloud)")
-fields["mqtt_port"]   = prompt("  Port", default="8883")
-fields["mqtt_user"]   = prompt("  Username")
-fields["mqtt_pass"]   = prompt("  Password", secret=True)
+fields["mqtt_broker"] = prompt("  Broker hostname", env_key="DZ_MQTT_BROKER")
+fields["mqtt_port"]   = prompt("  Port", default="8883", env_key="DZ_MQTT_PORT")
+fields["mqtt_user"]   = prompt("  Username", env_key="DZ_MQTT_USER")
+fields["mqtt_pass"]   = prompt("  Password", secret=True, env_key="DZ_MQTT_PASS")
 
 print("\nCellular (SIM7600):")
-fields["gsm_apn"]  = prompt("  APN", default="internet")
-fields["gsm_user"] = prompt("  APN username (blank if none)", default="")
-fields["gsm_pass"] = prompt("  APN password (blank if none)", default="")
+fields["gsm_apn"]  = prompt("  APN", default="internet", env_key="DZ_GSM_APN")
+fields["gsm_user"] = prompt("  APN username (blank if none)", default="", env_key="DZ_GSM_USER")
+fields["gsm_pass"] = prompt("  APN password (blank if none)", default="", env_key="DZ_GSM_PASS")
 
 print("\nWiFi fallback (leave blank to skip):")
-fields["wifi_ssid"] = prompt("  SSID", default="")
-fields["wifi_pass"] = prompt("  Password", secret=True) if fields["wifi_ssid"] else ""
+fields["wifi_ssid"] = prompt("  SSID", default="", env_key="DZ_WIFI_SSID")
+fields["wifi_pass"] = prompt("  Password", secret=True, env_key="DZ_WIFI_PASS") if fields["wifi_ssid"] else ""
 
 print("\nDevice:")
-fields["device_name"] = prompt("  Device name", default="Dzobibi")
+fields["device_name"] = prompt("  Device name", default="Dzobibi", env_key="DZ_DEVICE_NAME")
 
 # ── detect port ───────────────────────────────────────────────────────────────
 
@@ -88,7 +94,10 @@ run(["arduino-cli", "upload", "--fqbn", FQBN, "--port", port, PROVISION])
 
 print("\n[3/4] Writing credentials to NVS...")
 import serial as pyserial
-time.sleep(2)  # let board boot
+
+# Wait for USB CDC to re-enumerate after flash reset
+print("  Waiting for board to boot...")
+time.sleep(5)
 
 ser = pyserial.Serial(port, 115200, timeout=3)
 time.sleep(0.5)
