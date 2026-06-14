@@ -29,7 +29,7 @@ void setup() {
     // ── Watchdog ────────────────────────────────────────────────────────────
     // Tasks register themselves; setup() does not feed the WDT.
     esp_task_wdt_config_t wdt_cfg = {
-        .timeout_ms = WDT_SAFETY_S * 1000,
+        .timeout_ms = WDT_COMMS_S * 1000,  // 90 s — covers TLS handshake; safety/hk tasks reset every 500 ms
         .idle_core_mask = 0,
         .trigger_panic = true,
     };

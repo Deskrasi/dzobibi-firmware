@@ -18,8 +18,10 @@ bool wifi_connect(const char* ssid, const char* pass, uint32_t timeout_ms) {
     s_connected = (WiFi.status() == WL_CONNECTED);
     if (s_connected) {
         Serial.printf("[WiFi] connected, IP=%s\n", WiFi.localIP().toString().c_str());
-        // TODO: load HiveMQ CA cert and call s_client.setCACert(...)
-        s_client.setInsecure();  // development only
+        s_client.setInsecure();  // development only — swap for setCACert() in production
+    } else {
+        Serial.printf("[WiFi] failed, status=%d (1=no SSID, 4=bad password)\n",
+                      WiFi.status());
     }
     return s_connected;
 }

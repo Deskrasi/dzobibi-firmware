@@ -9,16 +9,19 @@ static enum class Link { NONE, CELLULAR, WIFI } s_link = Link::NONE;
 bool transport_connect() {
     const ProvisionedConfig& cfg = active_config();
 
-    // Try cellular first (primary)
-    if (cellular_init() && cellular_connect(cfg.gsm_apn, cfg.gsm_user, cfg.gsm_pass)) {
-        s_link = Link::CELLULAR;
-        return true;
-    }
-
-    // Fallback to WiFi if credentials are provisioned
+    // WiFi first when credentials are provisioned.
+    // ESP32's WiFiClientSecure provides native TLS — required for HiveMQ Cloud.
+    // Cellular (TinyGsmClient) uses plain TCP; TLS over cellular needs a
+    // SIM7600 firmware update to enable AT+CCHOPEN (not supported on LE20B04).
     if (strlen(cfg.wifi_ssid) > 0 &&
         wifi_connect(cfg.wifi_ssid, cfg.wifi_pass)) {
         s_link = Link::WIFI;
+        return true;
+    }
+
+    // Cellular fallback (plain TCP only on current firmware)
+    if (cellular_init() && cellular_connect(cfg.gsm_apn, cfg.gsm_user, cfg.gsm_pass)) {
+        s_link = Link::CELLULAR;
         return true;
     }
 

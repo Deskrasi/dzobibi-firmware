@@ -4,6 +4,7 @@
 #include "../config/constants.h"
 #include <Arduino.h>
 #include <PubSubClient.h>
+#include <esp_task_wdt.h>
 
 static PubSubClient  s_mqtt;
 static MqttConfig    s_cfg;
@@ -41,6 +42,8 @@ static bool do_connect() {
     snprintf(client_id, sizeof(client_id), "dzobibi-%s", s_cfg.device_id);
 
     // LWT: retained "offline" status
+    // TLS handshake over cellular can take 10–30 s; reset WDT before blocking.
+    esp_task_wdt_reset();
     bool ok = s_mqtt.connect(
         client_id,
         s_cfg.username,

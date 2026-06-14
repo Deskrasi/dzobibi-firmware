@@ -3,7 +3,12 @@
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 
-// TinyGSM for SIM7600
+// TinyGSM for SIM7600G-H.
+// NOTE: TinyGSM's SIM7600 driver has no SSL client (AT+CCHOPEN and AT+CIPSSL
+// both return ERROR on firmware LE20B04SIM7600G22).  TinyGsmClient wraps
+// plain-TCP sockets (AT+CIPOPEN) and is used here for cellular-only transport.
+// When TLS is required (HiveMQ Cloud port 8883), use WiFi transport instead
+// or update the SIM7600 firmware to one that supports AT+CCHOPEN.
 #define TINY_GSM_MODEM_SIM7600
 #define TINY_GSM_USE_GPRS true
 #define TINY_GSM_USE_WIFI false
@@ -11,14 +16,8 @@
 
 static TinyGsm       s_modem(Serial1);
 static TinyGsmClient s_client(s_modem, 0);
-// TinyGSM's SIM7600 driver has no TLS client wrapper — SSL is negotiated
-// by configuring the modem's internal SSL context (AT+CSSLCFG) before
-// opening the socket.  cellular_init() sets up sslversion + ignorelocaltime
-// so the SIM7600 handles TLS termination transparently on the TCP socket
-// that TinyGsmClient wraps.  No change needed in the PubSubClient layer.
 static bool          s_data_up = false;
 
-// Pulse PWRKEY to toggle modem power (HIGH = pull PWRKEY low)
 static void pulse_pwrkey() {
     digitalWrite(PIN_MODEM_PWRKEY, HIGH);
     delay(1200);
@@ -38,7 +37,6 @@ bool cellular_init() {
     if (!modem_responsive()) {
         Serial.println("[GSM] powering on...");
         pulse_pwrkey();
-        // Wait up to 15 s for boot
         uint32_t t = millis();
         while (!modem_responsive() && (millis() - t) < 15000) delay(500);
     }
@@ -48,14 +46,9 @@ bool cellular_init() {
         return false;
     }
 
-    s_modem.sendAT("+CMEE=2");      // verbose errors
+    s_modem.sendAT("+CMEE=2");
     s_modem.waitResponse();
-    s_modem.sendAT("E0");           // echo off
-    s_modem.waitResponse();
-
-    // TLS: disable cert verification for initial bring-up
-    // TODO: load HiveMQ CA cert and enable verification before production
-    s_modem.sendAT("+CSSLCFG=\"ignorelocaltime\",1,1");
+    s_modem.sendAT("E0");
     s_modem.waitResponse();
 
     Serial.println("[GSM] modem ready");
@@ -64,7 +57,6 @@ bool cellular_init() {
 
 bool cellular_connect(const char* apn, const char* user, const char* pass) {
     Serial.printf("[GSM] connecting GPRS on APN '%s'...\n", apn);
-    // Poll network registration in short bursts so the caller can feed the WDT
     bool registered = false;
     for (int i = 0; i < 12 && !registered; i++) {
         registered = s_modem.waitForNetwork(5000);
@@ -88,7 +80,7 @@ bool cellular_is_connected() {
 Client* cellular_get_client() { return &s_client; }
 
 int cellular_rssi() {
-    return s_modem.getSignalQuality();  // 0-31, 99 = unknown
+    return s_modem.getSignalQuality();
 }
 
 bool cellular_get_imei(char* out, size_t len) {
